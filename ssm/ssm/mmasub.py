@@ -70,7 +70,7 @@ def mmasub(m, n, iter, xval, xmin, xmax, xold1, xold2, \
         upp = xval + asyinit*(xmax-xmin)
     else:
         zzz = (xval-xold1)*(xold1-xold2)
-        factor = eeen
+        factor = eeen.copy()
         factor[zzz > 0] = asyincr
         factor[zzz < 0] = asydecr
         low = xval - factor*(xold1 - low)
@@ -102,10 +102,10 @@ def mmasub(m, n, iter, xval, xmin, xmax, xold1, xold2, \
     uxinv = eeen/ux1
     xlinv = eeen/xl1
     #
-#     p0 = zeron
-#     q0 = zeron
-    p0 = np.maximum(df0dx, 0)
-    q0 = np.maximum(-df0dx, 0)
+    p0 = zeron
+    q0 = zeron
+    p0 = df0dx.clip(min=0)
+    q0 = (-df0dx).clip(min=0)
     #p0(find(df0dx > 0)) = df0dx(find(df0dx > 0));
     #q0(find(df0dx < 0)) = -df0dx(find(df0dx < 0));
     pq0 = 0.001*(p0 + q0) + raa0*xmamiinv
@@ -113,17 +113,36 @@ def mmasub(m, n, iter, xval, xmin, xmax, xold1, xold2, \
     q0 = q0 + pq0
     p0 = p0*ux2
     q0 = q0*xl2
-
-    P = np.maximum(dfdx, 0)
-    Q = np.maximum(-dfdx, 0)
+    #
+#     P = csr_matrix((m,n))
+#     D = csr_matrix((m,n))
+#     print 'd=', type(D)
+#     Q = csr_matrix((m,n))
+    P = dfdx.clip(min=0)
+#     print P.size
+#     print 'dfdx=', type(dfdx)
+#     print 'xmamiinv', type(xmamiinv)
+    Q = (-dfdx).clip(min=0)
     #P(find(dfdx > 0)) = dfdx(find(dfdx > 0));
     #Q(find(dfdx < 0)) = -dfdx(find(dfdx < 0));
     PQ = 0.001*(P + Q) + raa0*eeem[:, None]*xmamiinv[None, :]
+#     print xmamiinv.shape
+#     d = np.tensordot(eeem, xmamiinv, axes=0)
+#     print 'i', d.shape
+    
+#     print 'PQ=', type(PQ)
     P = P + PQ
     Q = Q + PQ
+#     print P.size
+#     P = spdiags(ux2,0,n,n).T.dot(P)
     P = csr_matrix(P)*spdiags(ux2,0,n,n)
+#     Q = spdiags(xl2,0,n,n).T.dot(Q)
     Q = csr_matrix(Q)*spdiags(xl2,0,n,n)
+#     F = np.dot(P,uxinv)+np.dot(Q, xlinv)
+#     print 'F=', type(F)
+#     print 'fval=', type(fval)
     b = P.dot(uxinv) + Q.dot(xlinv) - fval
+    print b
     
     #
     ### Solving the subproblem by a primal-dual Newton method

@@ -24,9 +24,9 @@ def main(nelx,nely,volfrac,penal,rmin,ft):
     
     # parameters for MMA
     a0 = 1.                                 
-    a = np.zeros(1,dtype=float);    
-    c = 1e6*np.ones(1,dtype=float)
-    d = np.ones(1,dtype=float)
+    a = np.zeros(1,dtype=float)    
+    c = 1e3*np.ones(1,dtype=float)
+    d = np.zeros(1,dtype=float)
 
     # Allocate design variables (as array), initialize and allocate sens.
     x=volfrac * np.ones(nely*nelx,dtype=float)
@@ -103,7 +103,7 @@ def main(nelx,nely,volfrac,penal,rmin,ft):
     dv = np.ones(nely*nelx)
     dc = np.ones(nely*nelx)
     ce = np.ones(nely*nelx)
-    while change>0.01 and loop<2000:
+    while change>0.001 and loop<200:
         loop=loop+1
 
         # Setup and solve FE problem
@@ -119,7 +119,7 @@ def main(nelx,nely,volfrac,penal,rmin,ft):
         obj=( (Emin+xPhys**penal*(Emax-Emin))*ce ).sum()
         dc[:]=(-penal*xPhys**(penal-1)*(Emax-Emin))*ce
         
-        fval = np.sum(xPhys)/nelx/nely-volfrac
+        fval = np.sum(xPhys)-volfrac*nelx*nely
         dv[:] = np.ones(nely*nelx)
         # Sensitivity filtering:
         if ft==0:
@@ -129,15 +129,15 @@ def main(nelx,nely,volfrac,penal,rmin,ft):
             dv[:] = np.asarray(H*(dv[np.newaxis].T/Hs))[:,0]
 
         # Optimality criteria
-#         xold[:]=x
-#         (x[:],g)=oc(nelx,nely,x,volfrac,dc,dv,g)
+        xold[:]=x
+        (x[:],g)=oc(nelx,nely,x,volfrac,dc,dv,g)
         
 #         # MMA
-        xmma,ymma,zmma,lam,xsi,eta,mu,zet,s,low,upp = \
-            mmasub(1,nelx*nely,loop,x,xmin, xmax, xold,xold2,obj,dc,fval,dv,low,upp,a0,a,c,d)
-        xold2 = xold     
-        xold = x    
-        x = xmma
+#         xmma,ymma,zmma,lam,xsi,eta,mu,zet,s,low,upp = \
+#             mmasub(1,nelx*nely,loop,x,xmin, xmax, xold,xold2,obj,dc,fval,dv,low,upp,a0,a,c,d)
+#         xold2 = xold     
+#         xold = x    
+#         x = xmma
 
         # Filter design variables
         if ft==0:   xPhys[:]=x
@@ -203,12 +203,12 @@ def deleterowcol(A, delrow, delcol):
 
 if __name__ == "__main__":
     # Default input parameters
-    nelx=90
-    nely=30
+    nelx=400
+    nely=100
     volfrac=0.4
-    rmin=5.4
+    rmin=3.5
     penal=3.0
-    ft=1 # ft==0 -> sens, ft==1 -> dens
+    ft=0 # ft==0 -> sens, ft==1 -> dens
 
     import sys
     if len(sys.argv)>1: nelx   =int(sys.argv[1])
@@ -217,5 +217,11 @@ if __name__ == "__main__":
     if len(sys.argv)>4: rmin   =float(sys.argv[4])
     if len(sys.argv)>5: penal  =float(sys.argv[5])
     if len(sys.argv)>6: ft     =int(sys.argv[6])
-
+    
     main(nelx,nely,volfrac,penal,rmin,ft)
+
+#     import profile
+#     profile.run('main(nelx,nely,volfrac,penal,rmin,ft)', sort='time')
+#     import pstats
+#     p = pstats.Stats("prof.txt")
+#     p.sort_stats("time").print_stats()
