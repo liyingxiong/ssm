@@ -27,19 +27,19 @@ def subsolv(m,n,epsimin,low,upp,alfa,beta,p0,q0,P,Q,a0,a,b,c,d):
       
     een = np.ones(n,dtype=float)
     eem = np.ones(m,dtype=float)
-    epsi = 1
+    epsi = 1.
     epsvecn = epsi*een
     epsvecm = epsi*eem
     x = 0.5*(alfa+beta)
     y = eem
-    z = 1
+    z = 1.
     lam = eem
     xsi = een/(x-alfa)
     xsi = np.amax((xsi,een), axis=0)
     eta = een/(beta-x)
     eta = np.amax((eta,een), axis=0)
     mu  = np.amax((eem,0.5*c), axis=0)
-    zet = 1
+    zet = 1.
     s = eem
     itera = 0
     
@@ -77,8 +77,8 @@ def subsolv(m,n,epsimin,low,upp,alfa,beta,p0,q0,P,Q,a0,a,b,c,d):
     
         ittt = 0
         while residumax > 0.9*epsi and ittt < 100:
-            ittt=ittt + 1
-            itera=itera + 1
+            ittt=ittt + 1.
+            itera=itera + 1.
         
             ux1 = upp-x
             xl1 = x-low
@@ -150,8 +150,8 @@ def subsolv(m,n,epsimin,low,upp,alfa,beta,p0,q0,P,Q,a0,a,b,c,d):
             stmbeta = max(stepbeta)
             stmalbe  = max(stmalfa,stmbeta)
             stmalbexx = max(stmalbe,stmxx)
-            stminv = max(stmalbexx,1)
-            steg = 1/stminv
+            stminv = max(stmalbexx,1.)
+            steg = 1./stminv
         
             xold   =   x
             yold   =   y
@@ -202,11 +202,11 @@ def subsolv(m,n,epsimin,low,upp,alfa,beta,p0,q0,P,Q,a0,a,b,c,d):
                 residu2 = np.hstack((relam, rexsi, reeta, remu, rezet, res))
                 residu = np.hstack((residu1, residu2))
                 resinew = np.sqrt(np.dot(residu, residu))
-                steg = steg/2
+                steg = steg/2.
 
             residunorm=resinew
             residumax = max(abs(residu))
-            steg = 2*steg
+            steg = 2.*steg
         
         epsi = 0.1*epsi
     

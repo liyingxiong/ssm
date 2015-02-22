@@ -52,8 +52,8 @@ def main(nelx,nely,volfrac,penal,rmin,ft):
             edofMat[el,:]=np.array([2*n1+2, 2*n1+3, 2*n2+2, 2*n2+3,2*n2, 2*n2+1, 2*n1, 2*n1+1])
     # Construct the index pointers for the coo format
     iK = np.kron(edofMat,np.ones((8,1))).flatten()
-    jK = np.kron(edofMat,np.ones((1,8))).flatten()    
-
+    jK = np.kron(edofMat,np.ones((1,8))).flatten()
+    
     # Filter: Build (and assemble) the index+data vectors for the coo matrix format
     nfilter=nelx*nely*((2*(np.ceil(rmin)-1)+1)**2)
     iH = np.zeros(nfilter)
@@ -82,6 +82,7 @@ def main(nelx,nely,volfrac,penal,rmin,ft):
     # BC's and support
     dofs=np.arange(2*(nelx+1)*(nely+1))
     fixed=np.union1d(dofs[0:2*(nely+1):2],np.array([2*(nelx+1)*(nely+1)-1]))
+#     fixed=np.union1d(np.array([0, 1]), np.array([2*(nelx+1)*(nely+1)-1]))
     free=np.setdiff1d(dofs,fixed)
 
     # Solution and RHS vectors
@@ -90,6 +91,7 @@ def main(nelx,nely,volfrac,penal,rmin,ft):
 
     # Set load
     f[1,0]=-1
+#     f[2*(nely+1)*(nelx/2+1)-1, 0]=-1
 
     # Initialize plot and plot the initial design
     plt.ion() # Ensure that redrawing is possible
@@ -105,10 +107,12 @@ def main(nelx,nely,volfrac,penal,rmin,ft):
     ce = np.ones(nely*nelx)
     while change>0.001 and loop<200:
         loop=loop+1
+        
 
         # Setup and solve FE problem
         sK=((KE.flatten()[np.newaxis]).T*(Emin+(xPhys)**penal*(Emax-Emin))).flatten(order='F')
         K = coo_matrix((sK,(iK,jK)),shape=(ndof,ndof)).tocsc()
+        
         # Remove constrained dofs from matrix
         K = deleterowcol(K,fixed,fixed)
         # Solve system 
@@ -129,15 +133,15 @@ def main(nelx,nely,volfrac,penal,rmin,ft):
             dv[:] = np.asarray(H*(dv[np.newaxis].T/Hs))[:,0]
 
         # Optimality criteria
-        xold[:]=x
-        (x[:],g)=oc(nelx,nely,x,volfrac,dc,dv,g)
+#         xold[:]=x
+#         (x[:],g)=oc(nelx,nely,x,volfrac,dc,dv,g)
         
 #         # MMA
-#         xmma,ymma,zmma,lam,xsi,eta,mu,zet,s,low,upp = \
-#             mmasub(1,nelx*nely,loop,x,xmin, xmax, xold,xold2,obj,dc,fval,dv,low,upp,a0,a,c,d)
-#         xold2 = xold     
-#         xold = x    
-#         x = xmma
+        xmma,ymma,zmma,lam,xsi,eta,mu,zet,s,low,upp = \
+            mmasub(1,nelx*nely,loop,x,xmin, xmax, xold,xold2,obj,dc,fval,dv,low,upp,a0,a,c,d)
+        xold2 = xold     
+        xold = x    
+        x = xmma
 
         # Filter design variables
         if ft==0:   xPhys[:]=x
@@ -203,8 +207,8 @@ def deleterowcol(A, delrow, delcol):
 
 if __name__ == "__main__":
     # Default input parameters
-    nelx=400
-    nely=100
+    nelx=200
+    nely=50
     volfrac=0.4
     rmin=3.5
     penal=3.0

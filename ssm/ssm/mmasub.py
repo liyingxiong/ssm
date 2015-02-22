@@ -142,12 +142,11 @@ def mmasub(m, n, iter, xval, xmin, xmax, xold1, xold2, \
 #     print 'F=', type(F)
 #     print 'fval=', type(fval)
     b = P.dot(uxinv) + Q.dot(xlinv) - fval
-    print b
-    
-    #
+
     ### Solving the subproblem by a primal-dual Newton method
     xmma,ymma,zmma,lam,xsi,eta,mu,zet,s = \
     subsolv(m,n,epsimin,low,upp,alfa,beta,p0,q0,P,Q,a0,a,b,c,d)
+    
     
     return xmma,ymma,zmma,lam,xsi,eta,mu,zet,s,low,upp
       
