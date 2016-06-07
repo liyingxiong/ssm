@@ -1,69 +1,43 @@
-'''
-Created on Feb 25, 2015
-
-@author: Li Yingxiong
-'''
-
+import matplotlib.pyplot as plt
 import numpy as np
-from scipy.sparse import coo_matrix
-
-a = np.array([[0, 0, 0, 1, 0, 1, 0],
-              [1, 0, 1, 0.5, 0, 0, 0]])
-
-b = np.array([[0, 3, 6, 1, 0, 1, 0],
-              [1, 0, 1, 0.5, 8, 4, 0]])
-
-k = np.array([[1., -1.],
-              [-1., 1.]])
-
-print a.T.dot(k).dot(b)
-print b.T.dot(k).dot(a)
-
-# a = np.array([[0.2457,  0.2457,  0.,  0.,  0.2543,  0.2543,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.],
-#               [0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.,  0.2457,  0.2457,  0.,  0.,  0.2543,  0.2543]])
-
-# l = []
-# for i in range(4):
-#     a[0, 0] = i
-#     b = coo_matrix(a)
-#     print b
-#     print np.copy(b)
-#     l.append(b)
-#
-# print l[0]
-# print l[1]
-# print l[2]
-
-# b = coo_matrix(a)
-#
-# d = np.copy(a)
-#
-# print d
+from scipy.interpolate import InterpolatedUnivariateSpline
 
 
-k = np.array([[1., -1.],
-              [-1., 1.]]) / (2 * np.sqrt(2))
-np.set_printoptions(precision=4, linewidth=1000)
+cs = np.array([[16.66666667,  17.85714286,  19.23076923,  20.83333333,  23.80952381,   26.31578947,  25.,          31.25,        35.71428571,  33.33333333],
+               [17.85714286,  20.,          19.23076923,  21.73913043,  22.72727273,
+                   25.,   27.77777778,  33.33333333,  31.25,        45.45454545],
+               [16.12903226,  19.23076923,  20.,          21.73913043,  23.80952381,
+                   26.31578947,  31.25,        33.33333333,  35.71428571,  45.45454545],
+               [17.24137931,  17.85714286,  20.83333333,  21.73913043,  23.80952381,
+                   26.31578947,  31.25,        33.33333333,  38.46153846,  41.66666667],
+               [18.51851852,  18.51851852,  20.,          22.72727273,  22.72727273,
+                   27.77777778,  31.25,        31.25,        38.46153846,  50.],
+               [17.24137931,  18.51851852,  21.73913043,  23.80952381,  25.,
+                   27.77777778,   31.25,        35.71428571,  41.66666667,  50.],
+               [16.66666667,  19.23076923,  18.51851852,  26.31578947,  25.,
+                   31.25,   33.33333333,  35.71428571,  41.66666667,  50.],
+               [16.12903226,  22.72727273,  21.73913043,  22.72727273,  25.,
+                   33.33333333,   33.33333333,  35.71428571,  38.46153846,  38.4615384615],
+               [17.85714286,  20.83333333,  21.73913043,  26.31578947,  26.31578947,
+                   26.31578947,  31.25,        38.46153846,  45.45454545,  45.45454545],
+               [17.85714286,  20.,          23.80952381,  23.80952381,  26.31578947,   29.41176471,  33.33333333,  33.33333333,  41.66666667,  45.45454545]])
 
-print a.T.dot(k).dot(a)
+cs_1 = np.zeros((25, 10))
 
+for i in range(10):
+    # given values
+    xi = np.linspace(25, 75, 10)
+    yi = cs[:, i]
+# positions to inter/extrapolate
+    x = np.linspace(10, 100, 25)
+# spline order: 1 linear, 2 quadratic, 3 cubic ...
+    order = 1
+# do inter/extrapolation
+    s = InterpolatedUnivariateSpline(xi, yi, k=order)
+    y = s(x)
+    cs_1[:, i] = y
 
-# print np.nonzero(a)[1]
-# print np.unique(np.nonzero(a)[1])
-#
-# idx = np.unique(np.nonzero(a)[1])
-# print a.T[np.unique(np.nonzero(a)[1])]
-#
-# b = a.T[np.unique(np.nonzero(a)[1])]
-#
-# print b.dot(k).dot(b.T)
-#
-# d = b.dot(k).dot(b.T)
-#
-# row = np.repeat(idx, len(idx))
-# print row
-#
-# col = np.tile(idx, len(idx))
-# print col
-#
-# print coo_matrix((d.flatten(), (row, col)), shape=(7, 7)).todense()
+print [cs_1]
+
+# example showing the interpolation for linear, quadratic and cubic
+# interpolation

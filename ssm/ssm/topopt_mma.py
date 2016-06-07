@@ -1,23 +1,27 @@
+# A 165 LINE TOPOLOGY OPTIMIZATION CODE BY NIELS AAGE AND VILLADS EGEDE
+# JOHANSEN, JANUARY 2013
 from __future__ import division
 import numpy as np
-
 from scipy.sparse import coo_matrix
 from scipy.sparse.linalg import spsolve
 from matplotlib import colors
 import matplotlib.pyplot as plt
-from mmasub import mmasub
 import mma
+
+# MAIN DRIVER
 
 
 def main(nelx, nely, volfrac, penal, rmin, ft):
-
-    # Max and min conductive coefficient
-    Emin = 1e-8
+    print("Minimum compliance problem with mma")
+    print("ndes: " + str(nelx) + " x " + str(nely))
+    print("volfrac: " + str(volfrac) + ", rmin: " +
+          str(rmin) + ", penal: " + str(penal))
+    print("Filter method: " + ["Sensitivity based", "Density based"][ft])
+    # Max and min stiffness
+    Emin = 1e-9
     Emax = 1.0
-
     # dofs:
-    ndof = (nelx + 1) * (nely + 1)
-    X, Y = np.meshgrid(range(nelx + 1), range(nely + 1))
+    ndof = 2 * (nelx + 1) * (nely + 1)
 
     # parameters for MMA
     a0 = 1.
@@ -42,22 +46,19 @@ def main(nelx, nely, volfrac, penal, rmin, ft):
 
     g = 0  # must be initialized to use the NGuyen/Paulino OC approach
     dc = np.zeros((nely, nelx), dtype=float)
-
     # FE: Build the index vectors for the for coo matrix format.
     KE = lk()
-    edofMat = np.zeros((nelx * nely, 4), dtype=int)
+    edofMat = np.zeros((nelx * nely, 8), dtype=int)
     for elx in range(nelx):
         for ely in range(nely):
             el = ely + elx * nely
             n1 = (nely + 1) * elx + ely
             n2 = (nely + 1) * (elx + 1) + ely
-            edofMat[el, :] = np.array([n1 + 1, n2 + 1, n2, n1])
-
-#     print edofMat
+            edofMat[el, :] = np.array(
+                [2 * n1 + 2, 2 * n1 + 3, 2 * n2 + 2, 2 * n2 + 3, 2 * n2, 2 * n2 + 1, 2 * n1, 2 * n1 + 1])
     # Construct the index pointers for the coo format
-    iK = np.kron(edofMat, np.ones((4, 1))).flatten()
-    jK = np.kron(edofMat, np.ones((1, 4))).flatten()
-
+    iK = np.kron(edofMat, np.ones((8, 1))).flatten()
+    jK = np.kron(edofMat, np.ones((1, 8))).flatten()
     # Filter: Build (and assemble) the index+data vectors for the coo matrix
     # format
     nfilter = nelx * nely * ((2 * (np.ceil(rmin) - 1) + 1) ** 2)
@@ -84,58 +85,44 @@ def main(nelx, nely, volfrac, penal, rmin, ft):
     # Finalize assembly and convert to csc format
     H = coo_matrix((sH, (iH, jH)), shape=(nelx * nely, nelx * nely)).tocsc()
     Hs = H.sum(1)
-
     # BC's and support
-    dofs = np.arange((nelx + 1) * (nely + 1))
-#     fixed=np.union1d(dofs[0:2*(nely+1):2],np.array([2*(nelx+1)*(nely+1)-1]))
-#     fixed=np.union1d(np.array([0]), np.array([nely+1]))
-#     fixed = np.array([0])
-#     fixed = dofs[0:nely + 1]
-#     fixed = dofs[10200]
+    dofs = np.arange(2 * (nelx + 1) * (nely + 1))
+    # fixed=np.union1d(dofs[0:2*(nely+1):2],np.array([2*(nelx+1)*(nely+1)-1]))
     fixed = []
-#     fixed = dofs[-nely - 1::]
     free = np.setdiff1d(dofs, fixed)
-
     # Solution and RHS vectors
     f = np.zeros((ndof, 1))
     u = np.zeros((ndof, 1))
-
     # Set load
-#     f[1,0]=-1
-#     f[:] = 3e-6
-    f[0:(nely + 1) * 50] = 3e-2
-    f[-(nely + 1) * 50::] = -3e-2
-
+    f[0:2 * (nely + 1):2, 0] = -1
+    f[2 * (nely + 1) * nelx:2 * (nely + 1) * (nelx + 1):2, 0] = 1
     # Initialize plot and plot the initial design
     plt.ion()  # Ensure that redrawing is possible
     fig, ax = plt.subplots()
     im = ax.imshow(-xPhys.reshape((nelx, nely)).T, cmap='gray',
                    interpolation='none', norm=colors.Normalize(vmin=-1, vmax=0))
-    fig.show()
-
+#     fig.show()
+    # Set loop counter and gradient vectors
     loop = 0
     change = 1
     dv = np.ones(nely * nelx)
     dc = np.ones(nely * nelx)
     ce = np.ones(nely * nelx)
-    while loop < 200:
+    while change > 0.01 and loop < 2000:
         loop = loop + 1
-
         # Setup and solve FE problem
         sK = ((KE.flatten()[np.newaxis]).T * (Emin + (xPhys)
                                               ** penal * (Emax - Emin))).flatten(order='F')
         K = coo_matrix((sK, (iK, jK)), shape=(ndof, ndof)).tocsc()
         # Remove constrained dofs from matrix
-        K = deleterowcol(K, fixed, fixed)
+        K = K[free, :][:, free]
         # Solve system
         u[free, 0] = spsolve(K, f[free, 0])
-
         # Objective and sensitivity
-        ce[:] = (np.dot(u[edofMat].reshape(nelx * nely, 4), KE)
-                 * u[edofMat].reshape(nelx * nely, 4)).sum(1)
+        ce[:] = (np.dot(u[edofMat].reshape(nelx * nely, 8), KE)
+                 * u[edofMat].reshape(nelx * nely, 8)).sum(1)
         obj = ((Emin + xPhys ** penal * (Emax - Emin)) * ce).sum()
         dc[:] = (-penal * xPhys ** (penal - 1) * (Emax - Emin)) * ce
-
         fval = np.sum(xPhys) - volfrac * nelx * nely
         dv[:] = np.ones(nely * nelx)
         # Sensitivity filtering:
@@ -145,16 +132,10 @@ def main(nelx, nely, volfrac, penal, rmin, ft):
         elif ft == 1:
             dc[:] = np.asarray(H * (dc[np.newaxis].T / Hs))[:, 0]
             dv[:] = np.asarray(H * (dv[np.newaxis].T / Hs))[:, 0]
-
         # Optimality criteria
 #         xold[:]=x
 #         (x[:],g)=oc(nelx,nely,x,volfrac,dc,dv,g)
-
-        # MMA
-#         xmma, ymma, zmma, lam, xsi, eta, mu, zet, s, low, upp = \
-#             mmasub(1, nelx * nely, loop, x, xmin, xmax, xold,
-#                    xold2, obj, dc, fval, dv, low, upp, a0, a, c, d)
-
+        # mma
         xmma, ymma, zmma, lam = mma.mmasub(
             loop, m, x.copy(), xold.copy(), xold2.copy(
             ), xmin, xmax, low, upp, a, c, obj, fval, fmax,
@@ -169,44 +150,43 @@ def main(nelx, nely, volfrac, penal, rmin, ft):
             xPhys[:] = x
         elif ft == 1:
             xPhys[:] = np.asarray(H * x[np.newaxis].T / Hs)[:, 0]
-
         # Compute the change by the inf. norm
         change = np.linalg.norm(
             x.reshape(nelx * nely, 1) - xold.reshape(nelx * nely, 1), np.inf)
-
         # Plot to screen
-#         plt.cla()
         im.set_array(-xPhys.reshape((nelx, nely)).T)
         plt.savefig('D:\ssm\%s.png' % loop)
         fig.canvas.draw()
-#         CS = plt.contour(X, Y, u.reshape((nelx + 1, nely + 1)))
-#         ax.clabel(CS, inline=1, fontsize=10)
-#         plt.show()
-
         # Write iteration history to screen (req. Python 2.6 or newer)
         print("it.: {0} , obj.: {1:.3f} Vol.: {2:.3f}, ch.: {3:.3f}".format(
             loop, obj, (g + volfrac * nelx * nely) / (nelx * nely), change))
-
     # Make sure the plot stays and that the shell remains
     plt.show()
     raw_input("Press any key...")
+# element stiffness matrix
 
 
 def lk():
-    return np.array([[2. / 3., -1. / 6., -1. / 3., -1. / 6.],
-                     [-1. / 6., 2. / 3., -1. / 6., -1. / 3.],
-                     [-1. / 3., -1. / 6., 2. / 3., -1. / 6.],
-                     [-1. / 6., -1. / 3., -1. / 6., 2. / 3.]])
-
-
-def deleterowcol(A, delrow, delcol):
-    # Assumes that matrix is in symmetric csc form !
-    m = A.shape[0]
-    keep = np.delete(np.arange(0, m), delrow)
-    A = A[keep, :]
-    keep = np.delete(np.arange(0, m), delcol)
-    A = A[:, keep]
-    return A
+    E = 1
+    nu = 0.3
+    k = np.array([1 / 2 - nu / 6, 1 / 8 + nu / 8, -1 / 4 - nu / 12, -1 / 8 +
+                  3 * nu / 8, -1 / 4 + nu / 12, -1 / 8 - nu / 8, nu / 6, 1 / 8 - 3 * nu / 8])
+    KE = E / (1 - nu ** 2) * np.array([[k[0], k[1], k[2], k[3], k[4], k[5], k[6], k[7]],
+                                       [k[1], k[0], k[7], k[6],
+                                           k[5], k[4], k[3], k[2]],
+                                       [k[2], k[7], k[0], k[5],
+                                           k[6], k[3], k[4], k[1]],
+                                       [k[3], k[6], k[5], k[0],
+                                           k[7], k[2], k[1], k[4]],
+                                       [k[4], k[5], k[6], k[7],
+                                           k[0], k[1], k[2], k[3]],
+                                       [k[5], k[4], k[3], k[2],
+                                           k[1], k[0], k[7], k[6]],
+                                       [k[6], k[3], k[4], k[1],
+                                           k[2], k[7], k[0], k[5]],
+                                       [k[7], k[2], k[1], k[4], k[3], k[6], k[5], k[0]]])
+    return (KE)
+# Optimality criterion
 
 
 def oc(nelx, nely, x, volfrac, dc, dv, g):
@@ -215,7 +195,6 @@ def oc(nelx, nely, x, volfrac, dc, dv, g):
     move = 0.2
     # reshape to perform vector operations
     xnew = np.zeros(nelx * nely)
-
     while (l2 - l1) / (l1 + l2) > 1e-3:
         lmid = 0.5 * (l2 + l1)
         xnew[:] = np.maximum(0.0, np.maximum(
@@ -226,16 +205,15 @@ def oc(nelx, nely, x, volfrac, dc, dv, g):
         else:
             l2 = lmid
     return (xnew, gt)
-
+# The real main driver
 if __name__ == "__main__":
     # Default input parameters
-    nelx = 200
-    nely = 100
+    nelx = 180
+    nely = 60
     volfrac = 0.4
-    rmin = 3.5
+    rmin = 5.4
     penal = 3.0
     ft = 1  # ft==0 -> sens, ft==1 -> dens
-
     import sys
     if len(sys.argv) > 1:
         nelx = int(sys.argv[1])
@@ -249,5 +227,4 @@ if __name__ == "__main__":
         penal = float(sys.argv[5])
     if len(sys.argv) > 6:
         ft = int(sys.argv[6])
-
     main(nelx, nely, volfrac, penal, rmin, ft)

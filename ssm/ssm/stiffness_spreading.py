@@ -9,8 +9,7 @@ nely -- number of elements in y direction
 r -- the influence radius
 output
 KBar -- the equivalent conduction matrix of the pipes
-? -- sensitivities of the objective function
-? -- sensitivities of the constraint functions
+akax_list, akay_list, akaa_list -- sensitivities of the objective function
 '''
 import numpy as np
 from scipy.sparse import coo_matrix

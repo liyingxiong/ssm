@@ -1,8 +1,3 @@
-'''
-Created on Feb 22, 2015
-
-@author: Li Yingxiong
-'''
 from __future__ import division
 import numpy as np
 from scipy.sparse import coo_matrix
@@ -12,12 +7,13 @@ import matplotlib.pyplot as plt
 from mmasub import mmasub
 from stiffness_spreading import stiffness_spreading
 import time as t
+import mma
 
 
 def main(nelx, nely, volfrac, penal, rmin, ft):
 
     # size of the design domain
-    element_size = 1.
+    element_size = 40. / nelx
     x_size = nelx * element_size
     y_size = nely * element_size
 
@@ -35,25 +31,6 @@ def main(nelx, nely, volfrac, penal, rmin, ft):
 
     # radius of the influence circle
     cs = 3.0
-
-# parameters for MMA
-#     a0 = 1.
-#     a = np.zeros(1,dtype=float)
-#     c = 1e6*np.ones(1,dtype=float)
-#     d = np.zeros(1,dtype=float)
-
-    # Allocate design variables (as array), initialize and allocate sens.
-#     x = volfrac * np.ones(nely * nelx, dtype=float)
-#     xold = x.copy()
-#     xold2 = x.copy()
-#     xPhys = x.copy()
-#     xmin = np.zeros(nely * nelx, dtype=float)
-#     xmax = np.ones(nely * nelx, dtype=float)
-#     low = xmin.copy()
-#     upp = xmax.copy()
-
-# g = 0  # must be initialized to use the NGuyen/Paulino OC approach
-#     dc = np.zeros((nely, nelx), dtype=float)
 
     # initial design for the pipe configurations
     Bars = np.array([[10., 10., 0., 10., 1., 100000.],
@@ -80,20 +57,12 @@ def main(nelx, nely, volfrac, penal, rmin, ft):
     # initial density design
     Pxval = volfrac * np.ones(nely * nelx, dtype=float)
     xPhys = np.copy(Pxval)
-#     Pdf0dx2 = np.zeros(Pn, dtype=float)
-#     Pxold1 = Pxval
-#     Pxold2 = Pxval
-#     Plow = Pxmin
-#     Pupp = Pxmax
-# todo
-#     Pdfdx2 = np.zeros(Pn)
-    # pipes(bars)
     Bm = 8 * nBars  # number of constraints
     Bn = 3 * nBars  # number of variables
     Bxmax = np.tile(np.array([x_size, y_size, 10 * np.pi]), nBars)
     Bxmin = np.tile(np.array([0., 0., -10 * np.pi]), nBars)
     Bxval = Bars[:, 0:3].flatten()
-#     Bdf0dx2 = np.zeros(Bn, dtype=float)
+
     #continuum and pipes(bars)
     m = Pm + Bm
     n = Pn + Bn
@@ -109,8 +78,6 @@ def main(nelx, nely, volfrac, penal, rmin, ft):
     low = xmin
     xold1 = xval
     xold2 = xval
-#     df0dx2 = np.hstack((Pdf0dx2, Bdf0dx2))
-#     dfdx2 = np.zeros((m, n))
 
     # FE: Build the index vectors for the for coo matrix format.
     KE = lk()
@@ -155,10 +122,6 @@ def main(nelx, nely, volfrac, penal, rmin, ft):
 
     # BC's and support
     dofs = np.arange((nelx + 1) * (nely + 1))
-#     fixed=np.union1d(dofs[0:2*(nely+1):2],np.array([2*(nelx+1)*(nely+1)-1]))
-#     fixed=np.union1d(np.array([0]), np.array([nely+1]))
-#     fixed = np.array([0])
-#     fixed = dofs[0:nely + 1]
     fixed = np.array([0])
     free = np.setdiff1d(dofs, fixed)
 
@@ -167,7 +130,6 @@ def main(nelx, nely, volfrac, penal, rmin, ft):
     u = np.zeros((ndof, 1))
 
     # Set load
-#     f[1,0]=-1
     f[:] = 0.1
 
     # Initialize plot and plot the initial design
@@ -177,8 +139,6 @@ def main(nelx, nely, volfrac, penal, rmin, ft):
               interpolation='none', norm=colors.Normalize(vmin=-1, vmax=0), origin='lower', extent=(0, x_size, 0, y_size))
     ax.plot((bars[:, 0], bars[:, 2]), (bars[:, 1], bars[:, 3]), 'r', lw=4)
     ax.plot((bars[:, 0], bars[:, 2]), (bars[:, 1], bars[:, 3]), 'ko')
-#     plt.xlim((0, x_size))
-#     plt.ylim((0, y_size))
 
     fig.show()
 
@@ -189,8 +149,9 @@ def main(nelx, nely, volfrac, penal, rmin, ft):
     ce = np.ones(nely * nelx)
 
     fval = np.zeros(m)  # values of the constraint functions
+    fmax = np.zeros(m)  # maximum values of the constraint functions
 
-    while loop < 20:
+    while loop < 200:
         t1 = t.time()
 
         loop = loop + 1
@@ -228,9 +189,6 @@ def main(nelx, nely, volfrac, penal, rmin, ft):
         # derivatives of the objective function
         Bdf0dx = np.zeros(Bn)
         for iBar in range(nBars):
-            #             print akax_lst[iBar].shape
-            #             print u[:].shape
-            #             print np.dot(akax_lst[iBar].dot(u).T, u)
             Bdf0dx[3 * iBar] = -0.5 * np.dot(akax_lst[iBar].dot(u).T, u)
             Bdf0dx[3 * iBar + 1] = -0.5 * np.dot(akay_lst[iBar].dot(u).T, u)
             Bdf0dx[3 * iBar + 2] = -0.5 * np.dot(akaa_lst[iBar].dot(u).T, u)
@@ -270,9 +228,15 @@ def main(nelx, nely, volfrac, penal, rmin, ft):
             xmin = np.hstack((Pxmin1, Bxmin))
 
         # MMA
-        xmma, ymma, zmma, lam, xsi, eta, mu, zet, s, low, upp = \
-            mmasub(m, n, loop, xval, xmin, xmax, xold1, xold2,
-                   obj, df0dx, fval, dfdx.T, low, upp, a0, a, c, d)
+#         xmma, ymma, zmma, lam, xsi, eta, mu, zet, s, low, upp = \
+#             mmasub(m, n, loop, xval, xmin, xmax, xold1, xold2,
+#                    obj, df0dx, fval, dfdx.T, low, upp, a0, a, c, d)
+
+        xmma, ymma, zmma, lam = mma.mmasub(
+            loop, m, xval.copy(), xold1.copy(), xold2.copy(
+            ), xmin, xmax, low, upp, a, c, obj, fval, fmax,
+            df0dx, dfdx.T, n)
+
         xold2 = xold1
         xold1 = xval
         xval = xmma
@@ -303,6 +267,8 @@ def main(nelx, nely, volfrac, penal, rmin, ft):
                   interpolation='none', norm=colors.Normalize(vmin=-1, vmax=0), origin='lower', extent=(0, x_size, 0, y_size))
         ax.plot((bars[:, 0], bars[:, 2]), (bars[:, 1], bars[:, 3]), 'r', lw=6)
         ax.plot((bars[:, 0], bars[:, 2]), (bars[:, 1], bars[:, 3]), 'ko')
+#         CS = plt.contour(X, Y, u.reshape((nely + 1, nelx + 1), order='F'))
+#         ax.clabel(CS, inline=1, fontsize=10)
         plt.xlim((0, x_size))
         plt.ylim((0, y_size))
         fig.show()
@@ -354,12 +320,13 @@ def deleterowcol(A, delrow, delcol):
 
 if __name__ == "__main__":
     # Default input parameters
-    nelx = 40
-    nely = 40
+    nelx = 300
+    nely = 300
     volfrac = 0.4
     rmin = 1.3
     penal = 3.0
     ft = 0  # ft==0 -> sens, ft==1 -> dens
+    main(nelx, nely, volfrac, penal, rmin, ft)
 
 #     import sys
 #     if len(sys.argv) > 1:
@@ -374,6 +341,6 @@ if __name__ == "__main__":
 #         penal = float(sys.argv[5])
 #     if len(sys.argv) > 6:
 #         ft = int(sys.argv[6])
-    import profile
-
-    profile.run("main(nelx, nely, volfrac, penal, rmin, ft)")
+#     import profile
+#
+#     profile.run("main(nelx, nely, volfrac, penal, rmin, ft)")

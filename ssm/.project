@@ -3,6 +3,7 @@
 	<name>ssm</name>
 	<comment></comment>
 	<projects>
+		<project>spirrid</project>
 	</projects>
 	<buildSpec>
 		<buildCommand>
